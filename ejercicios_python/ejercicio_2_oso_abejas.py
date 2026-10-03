@@ -31,6 +31,9 @@ simulacion_activa = True
 # mutex = threading.Lock()
 # sem_oso = threading.Semaphore(0)
 # sem_tarro_disponible = threading.Semaphore(1)
+mutex = threading.Lock()
+sem_oso = threading.Semaphore(0)
+sem_tarro_disponible = threading.Semaphore(1)
 
 def abeja(id_abeja):
     global tarro_miel, simulacion_activa
@@ -43,7 +46,20 @@ def abeja(id_abeja):
         # 3. Depositar una porción de miel (tarro_miel += 1).
         # 4. Si tarro_miel == M, avisar/despertar al oso dormido.
         # 5. Si no está lleno, permitir que otras abejas sigan produciendo.
-        pass
+        sem_tarro_disponible.acquire()
+        with mutex:
+            if not simulacion_activa:
+                sem_tarro_disponible.release()
+                break
+
+            tarro_miel += 1
+            print(f"🐝 Abeja {id_abeja} agrega miel ({tarro_miel}/{M}).")
+
+            if tarro_miel == M:
+                print(f"🍯 Tarro lleno. Abeja {id_abeja} despierta al oso.")
+                sem_oso.release()
+            else:
+                sem_tarro_disponible.release()
 
 def oso(max_tarros=2):
     global tarro_miel, simulacion_activa
@@ -57,9 +73,13 @@ def oso(max_tarros=2):
         # 3. Incrementar tarros_comidos += 1.
         # 4. Avisar a las abejas que el tarro está vacío y disponible (sem_tarro_disponible.release()).
         # =====================================================================
-        pass
+        sem_oso.acquire()
+        with mutex:
+            print("🐻 El oso despierta y come toda la miel.")
+            tarro_miel = 0
+            tarros_comidos += 1
+            sem_tarro_disponible.release()
         time.sleep(0.05)
-        break  # Evita bucle infinito si el alumno no implementó el TODO
         
     simulacion_activa = False
 
@@ -68,5 +88,17 @@ if __name__ == "__main__":
     print(" Iniciando Simulación: El Oso y las Abejas (UNJu FI)")
     print("=" * 60)
     # TODO: Crear e iniciar los hilos para el oso y las N abejas
-    pass
+    hilo_oso = threading.Thread(target=oso, args=(2,), name="Oso")
+    hilos_abejas = [
+        threading.Thread(target=abeja, args=(i,), name=f"Abeja-{i}")
+        for i in range(1, NUM_ABEJAS + 1)
+    ]
+
+    hilo_oso.start()
+    for hilo in hilos_abejas:
+        hilo.start()
+
+    hilo_oso.join()
+    for hilo in hilos_abejas:
+        hilo.join(timeout=1.0)
 
